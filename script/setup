@@ -1,0 +1,301 @@
+#!/usr/bin/env bash
+set -e
+
+abort() { echo "!!! $*" >&2; exit 1; }
+log()	 { echo "--> $*"; }
+logn()	{ printf -- "--> $* "; }
+logk()	{ echo "OK"; }
+
+# Print commands and their arguments as they are executed.
+#set -x
+
+# Set Git variables
+GIT_NAME='Yadiel Arroyo'
+GIT_EMAIL='yadielar@gmail.com'
+GITHUB_USER='yadielar'
+GITHUB_TOKEN='6e7810583257918dbb7e94ee7eb73185186edfdf'
+
+# Run the script as yourself, not root.
+[ "$USER" = "root" ] && abort "Run the script as yourself, not root."
+groups | grep $Q admin || abort "Add $USER to the admin group."
+
+# Initialise sudo now to save prompting later.
+log "Enter your password (for sudo access):"
+sudo -k
+sudo /usr/bin/true
+logk
+
+# Set computer name (as done via System Preferences → Sharing)
+logn "Set computer name to YadMac:"
+sudo scutil --set ComputerName "YadMac"
+sudo scutil --set HostName "YadMac"
+sudo scutil --set LocalHostName "YadMac"
+sudo defaults write /Library/Preferences/SystemConfiguration/com.apple.smb.server NetBIOSName -string "YadMac"
+logk
+
+# Install the Xcode Command Line Tools.
+DEVELOPER_DIR=$("xcode-select" -print-path 2>/dev/null || true)
+if [ -z "$DEVELOPER_DIR" ] || ! [ -f "$DEVELOPER_DIR/usr/bin/git" ] \
+                           || ! [ -f "/usr/include/iconv.h" ]
+then
+  log "Installing the Xcode Command Line Tools:"
+  CLT_PLACEHOLDER="/tmp/.com.apple.dt.CommandLineTools.installondemand.in-progress"
+  sudo touch "$CLT_PLACEHOLDER"
+  CLT_PACKAGE=$(softwareupdate -l | \
+                grep -B 1 -E "Command Line (Developer|Tools)" | \
+                awk -F"*" '/^ +\*/ {print $2}' | sed 's/^ *//' | head -n1)
+  sudo softwareupdate -i "$CLT_PACKAGE"
+  sudo rm -f "$CLT_PLACEHOLDER"
+  if ! [ -f "/usr/include/iconv.h" ]; then
+    echo
+    logn "Requesting user install of Xcode Command Line Tools:"
+    xcode-select --install
+  fi
+  logk
+fi
+
+# Check if the Xcode license is agreed to and agree if not.
+xcode_license() {
+  if /usr/bin/xcrun clang 2>&1 | grep $Q license; then
+    logn "Asking for Xcode license confirmation:"
+    sudo xcodebuild -license
+    logk
+  fi
+}
+xcode_license
+
+# Installing Homebrew.
+logn "Installing Homebrew:"
+if [ -z "$TRAVIS" ]; then
+  /usr/bin/ruby -e "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/master/install)"
+else
+  logn "Skipping installing Homebrew for CI"
+fi
+logk
+
+# Install Homebrew Bundle, Cask, Services and Versions tap.
+log "Installing Homebrew taps and extensions:"
+brew bundle --file=- <<EOF
+tap 'caskroom/cask'
+tap 'caskroom/versions'
+tap 'homebrew/core'
+tap 'homebrew/php'
+tap 'homebrew/services'
+EOF
+logk
+
+# Set some basic security settings.
+logn "Configuring security settings:"
+defaults write com.apple.Safari \
+  com.apple.Safari.ContentPageGroupIdentifier.WebKit2JavaEnabled \
+  -bool false
+defaults write com.apple.Safari \
+  com.apple.Safari.ContentPageGroupIdentifier.WebKit2JavaEnabledForLocalFiles \
+  -bool false
+defaults write com.apple.screensaver askForPassword -int 1
+defaults write com.apple.screensaver askForPasswordDelay -int 0
+sudo defaults write /Library/Preferences/com.apple.alf globalstate -int 1
+sudo launchctl load /System/Library/LaunchDaemons/com.apple.alf.agent.plist 2>/dev/null
+
+# Add login screen message.
+sudo defaults write /Library/Preferences/com.apple.loginwindow LoginwindowText \
+	"Found this computer? Please contact $GIT_NAME at $GIT_EMAIL."
+logk
+
+# Check and enable full-disk encryption.
+logn "Checking full-disk encryption status:"
+if fdesetup status | grep $Q -E "FileVault is (On|Off, but will be enabled after the next restart)."; then
+  logk
+elif [ -n "$TRAVIS" ]; then
+  echo
+  logn "Skipping full-disk encryption for CI"
+else
+  echo
+  log "Enabling full-disk encryption on next reboot:"
+  sudo fdesetup enable -user "$USER" \
+    | tee ~/Desktop/"FileVault Recovery Key.txt"
+  logk
+fi
+
+# Check and install any remaining software updates.
+logn "Checking for software updates:"
+if softwareupdate -l 2>&1 | grep $Q "No new software available."; then
+  logk
+else
+  echo
+  log "Installing software updates:"
+  if [ -z "$TRAVIS" ]; then
+    sudo softwareupdate --install --all
+    xcode_license
+  else
+    echo "Skipping software updates for CI"
+  fi
+  logk
+fi
+
+# Install the latest version of Bash.
+logn "Install latest version of Bash:"
+brew install bash
+if [ -z "$TRAVIS" ]; then
+	sudo bash -c 'echo /usr/local/bin/bash >> /etc/shells'
+	chsh -s /usr/local/bin/bash
+else
+	echo "Skipping installaing the latest verison of Bash."
+fi
+logk
+
+# Install binaries with Brew.
+logn "Installing binaries:"
+cat > /tmp/Brewfile <<EOF
+brew 'aria2'
+brew 'exiftool'
+brew 'git'
+brew 'gnu-sed', args: ['with-default-names']
+brew 'gpg-agent'
+brew 'bash-completion'
+brew 'hub'
+brew 'mas'
+brew 'pinentry-mac'
+brew 'vim'
+brew 'wget'
+brew 'yarn', args: ['ignore-dependencies']
+brew 'z'
+EOF
+brew bundle --file=/tmp/Brewfile
+rm -f /tmp/Brewfile
+logk
+
+# Install PHP, global packages and update php.ini config file.
+logn "Installing PHP:"
+brew install homebrew/php/php71
+sed -i".bak" "s/^\;phar.readonly.*$/phar.readonly = Off/g" /usr/local/etc/php/7.1/php.ini
+sed -i "s/memory_limit = .*/memory_limit = -1/" /usr/local/etc/php/7.1/php.ini
+if [ -z "$TRAVIS" ]; then
+  brew install homebrew/php/composer
+  brew install homebrew/php/php-cs-fixer
+  composer global install
+else
+	echo "Skipping installing composer and php-cs-fixer for CI."
+fi
+logk
+
+# Install macOS applications with Brew Cask.
+logn "Installing macOS applications:"
+export HOMEBREW_CASK_OPTS="--appdir=/Applications";
+cat > /tmp/Caskfile <<EOF
+  cask '1password'
+  cask 'appcleaner'
+  cask 'atom'
+  cask 'couleurs'
+  cask 'dropbox'
+  cask 'google-chrome-canary'
+  cask 'hyper'
+  cask 'imagealpha'
+  cask 'imageoptim'
+  cask 'keybase'
+  cask 'qlimagesize'
+  cask 'qlstephen'
+  cask 'sequel-pro'
+  cask 'sketch'
+  cask 'skype'
+  cask 'slack'
+  cask 'spotify'
+  cask 'transmit'
+  cask 'vlc'
+EOF
+if [ -z "$TRAVIS" ]; then
+  brew bundle --file=/tmp/Caskfile
+else
+  echo "Skipping installing macOS applications for CI."
+fi
+rm -f /tmp/Caskfile
+logk
+
+# Install macOS applications from the Mac App Store.
+logn "Installing macOS applications with MAS:"
+if [ -z "$TRAVIS" ]; then
+  #mas install 1091189122 # Bear
+  #mas install 407963104 # Pixelmator
+  mas install 889922906 # Jumpshare
+else
+  echo "Skipping installing macOS applications with MAS for CI."
+fi
+logk
+
+# Setup GitHub HTTPS credentials.
+if git credential-osxkeychain 2>&1 | grep $Q "git.credential-osxkeychain"
+then
+  if [ "$(git config --global credential.helper)" != "osxkeychain" ]
+  then
+    git config --global credential.helper osxkeychain
+  fi
+
+  if [ -n "$GITHUB_USER" ] && [ -n "$GITHUB_TOKEN" ]
+  then
+    printf "protocol=https\nhost=github.com\n" | git credential-osxkeychain erase
+    printf "protocol=https\nhost=github.com\nusername=%s\npassword=%s\n" \
+          "$GITHUB_USER" "$GITHUB_TOKEN" \
+          | git credential-osxkeychain store
+  fi
+fi
+logk
+
+# Create Sites directory in user folder.
+logn "Create Sites directory in user folder:"
+mkdir ~/Sites
+logk
+
+# Setup prefered macOS settings.
+logn "Setup prefered macOS settings:"
+
+# Menu bar: Always show percentage next to the Battery icon
+defaults write com.apple.menuextra.battery ShowPercent YES
+
+# Avoid creating .DS_Store files on network volumes
+defaults write com.apple.desktopservices DSDontWriteNetworkStores -bool true
+
+# Save screenshots to the downloads directory
+defaults write com.apple.screencapture location -string "${HOME}/Downloads"
+
+# Enable Secure Keyboard Entry in Terminal.app
+# See: https://security.stackexchange.com/a/47786/8918
+defaults write com.apple.terminal SecureKeyboardEntry -bool true
+
+# Set a blazingly fast keyboard repeat rate
+#defaults write NSGlobalDomain KeyRepeat -int 1
+#defaults write NSGlobalDomain InitialKeyRepeat -int 15
+
+# Disable auto-correct
+defaults write NSGlobalDomain NSAutomaticSpellingCorrectionEnabled -bool false
+
+# New Finder windows shows Home directory
+defaults write com.apple.finder NewWindowTarget -string "PfHm"
+defaults write com.apple.finder NewWindowTargetPath -string "file:///Users/yadielar/"
+
+# Disable the warning when changing a file extension
+defaults write com.apple.finder FXEnableExtensionChangeWarning -bool false
+
+# Minimize windows into application icon.
+defaults write com.apple.dock minimize-to-application -bool true
+
+# Keep folders on top when sorting by name
+defaults write com.apple.finder _FXSortFoldersFirst -bool true
+
+# Hide scrollbars
+defaults write NSGlobalDomain AppleShowScrollBars -string "WhenScrolling"
+# Possible values: `WhenScrolling`, `Automatic` and `Always`
+
+# Set the icon size of Dock items to 50 pixels
+defaults write com.apple.dock tilesize -int 50
+
+# Enable full keyboard access
+defaults write NSGlobalDomain AppleKeyboardUIMode -int 2
+
+# Automatically hide and show the Dock
+defaults write com.apple.dock autohide -bool true
+logk
+
+# Revoke sudo access again
+sudo -k
+
+log 'Finished! Please reboot! Install additional software with `brew install` and `brew cask install`.'
