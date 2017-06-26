@@ -98,7 +98,7 @@
 
 [commit]
 	# Sign all commits with GPG.
-	gpgsign = true
+	#gpgsign = true
 
 [core]
 	# Default editor for commit messages and other inputs.
@@ -144,7 +144,7 @@
 	email = yadielar@gmail.com
 
 	# Public GPG signing key id.
-	signingkey = 66C8C908EAE057A4
+	#signingkey = <PUBLIC_GPG_SIGNING_KEY>
 
 [github]
 	# GitHub username for command-line tools.

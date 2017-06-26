@@ -151,7 +151,6 @@ brew 'aria2'
 brew 'exiftool'
 brew 'git'
 brew 'gnu-sed', args: ['with-default-names']
-brew 'gpg-agent'
 brew 'bash-completion'
 brew 'hub'
 brew 'mas'
