@@ -173,7 +173,7 @@ sed -i "s/memory_limit = .*/memory_limit = -1/" /usr/local/etc/php/7.1/php.ini
 if [ -z "$TRAVIS" ]; then
   brew install homebrew/php/composer
   brew install homebrew/php/php-cs-fixer
-  composer global install
+  #composer global install # errors out due to lack of ~/composer.json
 else
 	echo "Skipping installing composer and php-cs-fixer for CI."
 fi
