@@ -192,6 +192,7 @@ cat > /tmp/Caskfile <<EOF
   cask 'hyper'
   cask 'imagealpha'
   cask 'imageoptim'
+  cask 'iterm2'
   cask 'keybase'
   cask 'qlimagesize'
   cask 'qlstephen'
@@ -199,8 +200,11 @@ cat > /tmp/Caskfile <<EOF
   cask 'sketch'
   cask 'skype'
   cask 'slack'
+  cask 'sourcetree'
   cask 'spotify'
+  cask 'sublime-text'
   cask 'transmit'
+  cask 'visual-studio-code'
   cask 'vlc'
 EOF
 if [ -z "$TRAVIS" ]; then
@@ -215,6 +219,7 @@ logk
 logn "Installing macOS applications with MAS:"
 if [ -z "$TRAVIS" ]; then
   #mas install 1091189122 # Bear
+  mas install 441258766 # Magnet
   #mas install 407963104 # Pixelmator
   mas install 889922906 # Jumpshare
 else
