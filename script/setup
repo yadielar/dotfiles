@@ -249,6 +249,11 @@ logn "Create Sites directory in user folder:"
 mkdir ~/Sites
 logk
 
+# Configure some symlinks
+logn "Configure some symlinks:"
+ln -s "/Applications/Sublime Text.app/Contents/SharedSupport/bin/subl" /usr/local/bin/subl
+logk
+
 # Setup prefered macOS settings.
 logn "Setup prefered macOS settings:"
 
