@@ -154,7 +154,6 @@ brew 'gnu-sed', args: ['with-default-names']
 brew 'bash-completion'
 brew 'hub'
 brew 'mas'
-brew 'pinentry-mac'
 brew 'vim'
 brew 'wget'
 brew 'yarn', args: ['ignore-dependencies']
