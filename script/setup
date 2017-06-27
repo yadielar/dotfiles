@@ -284,8 +284,8 @@ defaults write com.apple.finder NewWindowTargetPath -string "file:///Users/yadie
 # Disable the warning when changing a file extension
 defaults write com.apple.finder FXEnableExtensionChangeWarning -bool false
 
-# Minimize windows into application icon.
-defaults write com.apple.dock minimize-to-application -bool true
+# Make Dock icons of hidden applications translucent
+defaults write com.apple.dock showhidden -bool true
 
 # Keep folders on top when sorting by name
 defaults write com.apple.finder _FXSortFoldersFirst -bool true
