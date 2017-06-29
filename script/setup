@@ -13,7 +13,7 @@ logk()	{ echo "OK"; }
 GIT_NAME='Yadiel Arroyo'
 GIT_EMAIL='yadielar@gmail.com'
 GITHUB_USER='yadielar'
-GITHUB_TOKEN='6e7810583257918dbb7e94ee7eb73185186edfdf'
+GITHUB_TOKEN='<ADD LOCALLY>' # Do not include in source control
 
 # Run the script as yourself, not root.
 [ "$USER" = "root" ] && abort "Run the script as yourself, not root."
